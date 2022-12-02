@@ -1,4 +1,5 @@
-(executable
- (name day_1)
+(executables
+ (names day_1 day_2)
  (libraries core core_unix async)
- (preprocess (pps ppx_jane)))
+ (preprocess
+  (pps ppx_jane)))
