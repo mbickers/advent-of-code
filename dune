@@ -1,0 +1,4 @@
+(executable
+ (name day_1)
+ (libraries core core_unix async)
+ (preprocess (pps ppx_jane)))
