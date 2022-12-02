@@ -1,23 +1,17 @@
 open Core
 
-module Game_outcome = struct
-  type t = Left_wins | Right_wins | Draw
-end
-
-module Rock_paper_scissors = struct
-  type t = Rock | Paper | Scissors
+module Shape = struct
+  type t = Rock | Paper | Scissors [@@deriving equal]
 
   let value = function Rock -> 1 | Paper -> 2 | Scissors -> 3
+  let beats = function Rock -> Scissors | Paper -> Rock | Scissors -> Paper
+  let beaten_by = Fn.compose beats beats
 
-  let winner left right =
-    match (left, right) with
-    | Rock, Paper -> Game_outcome.Right_wins
-    | Paper, Scissors -> Right_wins
-    | Scissors, Rock -> Right_wins
-    | Paper, Rock -> Left_wins
-    | Scissors, Paper -> Left_wins
-    | Rock, Scissors -> Left_wins
-    | _, _ -> Draw
+  let outcome ~me ~opponent =
+    match (equal (beats me) opponent, equal (beaten_by me) opponent) with
+    | true, _ -> `Win
+    | _, true -> `Loss
+    | false, false -> `Draw
 end
 
 let () =
@@ -25,29 +19,58 @@ let () =
     In_channel.with_file "day_2_input.txt"
       ~f:
         (In_channel.fold_lines ~init:0 ~f:(fun score line ->
-             let opponent_choice =
+             let opponent =
                match String.get line 0 with
-               | 'A' -> Rock_paper_scissors.Rock
+               | 'A' -> Shape.Rock
                | 'B' -> Paper
                | 'C' -> Scissors
                | _ -> assert false
              in
-             let my_choice =
+             let me =
                match String.get line 2 with
-               | 'X' -> Rock_paper_scissors.Rock
+               | 'X' -> Shape.Rock
                | 'Y' -> Paper
                | 'Z' -> Scissors
                | _ -> assert false
              in
              let round_outcome_points =
-               match Rock_paper_scissors.winner opponent_choice my_choice with
-               | Left_wins -> 0
-               | Draw -> 3
-               | Right_wins -> 6
+               match Shape.outcome ~me ~opponent with
+               | `Loss -> 0
+               | `Draw -> 3
+               | `Win -> 6
              in
-             let points =
-               Rock_paper_scissors.value my_choice + round_outcome_points
-             in
-             points + score))
+             score + round_outcome_points + Shape.value me))
   in
   print_endline ("a: " ^ Int.to_string score ^ " points")
+
+let () =
+  let score =
+    In_channel.with_file "day_2_input.txt"
+      ~f:
+        (In_channel.fold_lines ~init:0 ~f:(fun score line ->
+             let opponent =
+               match String.get line 0 with
+               | 'A' -> Shape.Rock
+               | 'B' -> Paper
+               | 'C' -> Scissors
+               | _ -> assert false
+             in
+             let round_outcome =
+               match String.get line 2 with
+               | 'X' -> `Loss
+               | 'Y' -> `Draw
+               | 'Z' -> `Win
+               | _ -> assert false
+             in
+             let me =
+               match round_outcome with
+               | `Loss -> Shape.beats opponent
+               | `Draw -> opponent
+               | `Win -> Shape.beaten_by opponent
+             in
+             let round_outcome_points =
+               match round_outcome with `Loss -> 0 | `Draw -> 3 | `Win -> 6
+             in
+             score + round_outcome_points + Shape.value me))
+  in
+  print_endline ("b: " ^ Int.to_string score ^ " points")
