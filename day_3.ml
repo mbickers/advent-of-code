@@ -9,10 +9,10 @@ let priority = function
   | 'A' .. 'Z' as c -> Char.to_int c - Char.to_int 'A' + 27
   | _ -> failwith "invalid character"
 
-let common_char lists =
-  List.map lists ~f:(Fn.compose Char.Set.of_list String.to_list)
-  |> List.reduce_exn ~f:Set.inter
-  |> Set.choose_exn
+let common_char =
+  List.map ~f:(String.to_list >> Char.Set.of_list)
+  >> List.reduce_exn ~f:Set.inter
+  >> Set.choose_exn
 
 let part_a () =
   let split line =
@@ -23,7 +23,7 @@ let part_a () =
     Reader.with_file "day_3_input.txt"
       ~f:
         (Reader.lines
-        >> Pipe.map ~f:(priority % common_char % split)
+        >> Pipe.map ~f:(split >> common_char >> priority)
         >> Pipe.fold_without_pushback ~init:0 ~f:( + ))
   in
   print_endline ("a: " ^ Int.to_string priorities)
@@ -39,13 +39,13 @@ let part_b () =
     Reader.with_file "day_3_input.txt"
       ~f:
         (Reader.lines >> chunks_of ~length:3
-        >> Pipe.map ~f:(priority % common_char)
+        >> Pipe.map ~f:(common_char >> priority)
         >> Pipe.fold_without_pushback ~init:0 ~f:( + ))
   in
   print_endline ("b: " ^ Int.to_string priorities)
 
 let () =
-  Command.async ~summary:"none"
+  Command.async ~summary:"advent of code"
     (Command.Param.return (fun () ->
          let%bind () = part_a () in
          part_b ()))
