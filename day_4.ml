@@ -20,14 +20,14 @@ let part_a () =
   in
   with_parsed_input
     ~f:(Pipe.filter ~f:either_range_contains_other >> Pipe.drain_and_count)
-  >>| print_int
+  >>| printf "a: %d\n"
 
 let part_b () =
   let ranges_overlap ((l1, u1), (l2, u2)) =
     (l2 <= u1 && u2 >= l1) || (l1 <= u2 && u1 >= l2)
   in
   with_parsed_input ~f:(Pipe.filter ~f:ranges_overlap >> Pipe.drain_and_count)
-  >>| print_int
+  >>| printf "b: %d\n"
 
 let () =
   Command.async ~summary:"advent of code"
