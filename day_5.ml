@@ -3,7 +3,7 @@ open Async
 
 let ( >> ) f g x = g (f x)
 
-let with_parsed_input ~f =
+let rearrange_result ~crane_transform =
   let parse line =
     String.split line ~on:' ' |> List.filter ~f:(Fn.non String.is_empty)
     |> function
@@ -17,32 +17,31 @@ let with_parsed_input ~f =
           Int.(of_string quantity, of_string source, of_string destination)
     | _ -> failwith "unable to parse input line"
   in
-  Reader.with_file "day_5_input.txt" ~f:(Reader.lines >> Pipe.map ~f:parse >> f)
-
-let rearrange_result ~crane_transform =
-  with_parsed_input
+  let update_state stacks = function
+    | `Header stack_entries ->
+        let stacks =
+          match stacks with
+          | [] -> List.map stack_entries ~f:(fun _ -> [])
+          | stacks -> stacks
+        in
+        List.map2_exn stacks stack_entries ~f:(fun stack -> function
+          | ' ' -> stack | c -> stack @ [ c ])
+    | `Header_indices | `Empty -> stacks
+    | `Rearrange (quantity, source, destination) ->
+        let moved_crates, updated_source =
+          List.split_n (List.nth_exn stacks (source - 1)) quantity
+        in
+        List.mapi stacks ~f:(fun idx stack ->
+            match idx with
+            | _ when idx = source - 1 -> updated_source
+            | _ when idx = destination - 1 ->
+                crane_transform moved_crates @ stack
+            | _ -> stack)
+  in
+  Reader.with_file "day_5_input.txt"
     ~f:
-      (Pipe.fold_without_pushback ~init:[] ~f:(fun stacks -> function
-         | `Header stack_entries ->
-             let stacks =
-               match stacks with
-               | [] -> List.map stack_entries ~f:(fun _ -> [])
-               | stacks -> stacks
-             in
-             List.map2_exn stacks stack_entries ~f:(fun stack -> function
-               | ' ' -> stack | c -> stack @ [ c ])
-         | `Header_indices | `Empty -> stacks
-         | `Rearrange (quantity, source, destination) ->
-             let moved_crates, updated_source =
-               List.split_n (List.nth_exn stacks (source - 1)) quantity
-             in
-             List.mapi stacks ~f:(fun idx stack ->
-                 match idx with
-                 | _ when idx = source - 1 -> updated_source
-                 | _ when idx = destination - 1 ->
-                     crane_transform moved_crates @ stack
-                 | _ -> stack)
-         | _ -> failwith "invalid line type for state"))
+      (Reader.lines >> Pipe.map ~f:parse
+      >> Pipe.fold_without_pushback ~init:[] ~f:update_state)
 
 let part_a () =
   rearrange_result ~crane_transform:List.rev
