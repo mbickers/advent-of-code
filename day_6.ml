@@ -5,7 +5,10 @@ let position_of_k_distinct ~k =
   String.fold_until ~init:([], 1)
     ~f:(fun (previous_chunk, current_index) current_char ->
       let possible_match = current_char :: previous_chunk in
-      match List.contains_dup ~compare:Char.compare possible_match with
+      match
+        List.length possible_match = k
+        && not (List.contains_dup ~compare:Char.compare possible_match)
+      with
       | true -> Stop current_index
       | false -> Continue (List.take possible_match (k - 1), current_index + 1))
     ~finish:(fun _ -> failwith "failed to find distinct sequence")
