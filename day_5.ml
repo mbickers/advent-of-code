@@ -43,17 +43,20 @@ let rearrange_result ~crane_transform =
       (Reader.lines >> Pipe.map ~f:parse
       >> Pipe.fold_without_pushback ~init:[] ~f:update_state)
 
-let part_a () =
+let part_a =
   rearrange_result ~crane_transform:List.rev
-  >>| List.map ~f:List.hd_exn >>| String.of_char_list >>| printf "a: %s\n"
+  >>| List.map ~f:List.hd_exn >>| String.of_char_list
 
-let part_b () =
+let%expect_test _ =
+  let%bind result = part_a in
+  printf "%s\n" result;
+  [%expect "WCZTHTMPS"]
+
+let part_b =
   rearrange_result ~crane_transform:Fn.id
-  >>| List.map ~f:List.hd_exn >>| String.of_char_list >>| printf "b: %s\n"
+  >>| List.map ~f:List.hd_exn >>| String.of_char_list
 
-let () =
-  Command.async ~summary:"advent of code"
-    (Command.Param.return (fun () ->
-         let%bind () = part_a () in
-         part_b ()))
-  |> Command.run
+let%expect_test _ =
+  let%bind result = part_b in
+  printf "%s\n" result;
+  [%expect "BLSGJSDTS"]

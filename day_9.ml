@@ -2,6 +2,10 @@ open Core
 
 let ( >> ) f g x = g (f x)
 
+let%expect_test _ =
+  print_endline "test";
+  [%expect "test"]
+
 let heights =
   In_channel.read_lines "day_8_input.txt"
   |> List.map
@@ -43,10 +47,7 @@ let part_a =
          (List.exists ~f:(function
            | `Border_at_distance _ -> true
            | `Blocked_at_distance _ -> false))
-
-let%expect_test _ =
-  part_a |> printf "a: %d\n";
-  [%expect "a: 1849"]
+  |> printf "a: %d\n"
 
 let part_b =
   List.join visibilities
@@ -56,8 +57,4 @@ let part_b =
               match visiblity with
               | `Border_at_distance distance | `Blocked_at_distance distance ->
                   product * distance))
-  |> List.reduce_exn ~f:Int.max
-
-let%expect_test _ =
-  part_b |> printf "b: %d\n";
-  [%expect "b: 201600"]
+  |> List.reduce_exn ~f:Int.max |> printf "b: %d\n"

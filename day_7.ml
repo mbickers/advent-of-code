@@ -64,7 +64,7 @@ let construct_filesystem commands_and_output =
 
 let filesystem = construct_filesystem (In_channel.read_lines "day_7_input.txt")
 
-let () =
+let part_a =
   let rec helper acc filesystem =
     match filesystem with
     | Filesystem.Directory entries -> (
@@ -80,9 +80,13 @@ let () =
     | File size -> (0, size)
   in
   let acc, _ = helper 0 filesystem in
-  printf "a: %d\n" acc
+  acc
 
-let () =
+let%expect_test _ =
+  part_a |> printf "a: %d\n";
+  [%expect "a: 1886043"]
+
+let part_b =
   let free_space = 70000000 - Filesystem.size filesystem in
   let space_needed = 30000000 - free_space in
   let rec helper filesystem =
@@ -104,4 +108,8 @@ let () =
     | File size -> (None, size)
   in
   let acc, _ = helper filesystem in
-  printf "b: %d\n" (Option.value_exn acc)
+  Option.value_exn acc
+
+let%expect_test _ =
+  part_b |> printf "b: %d\n";
+  [%expect "b: 3842121"]

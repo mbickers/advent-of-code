@@ -1,5 +1,4 @@
 open Core
-open List.Let_syntax
 
 let position_of_k_distinct ~k =
   String.fold_until ~init:([], 1)
@@ -13,7 +12,12 @@ let position_of_k_distinct ~k =
       | false -> Continue (List.take possible_match (k - 1), current_index + 1))
     ~finish:(fun _ -> failwith "failed to find distinct sequence")
 
-let (_ : unit list) =
-  let%map part, k = [ ('a', 4); ('b', 14) ] in
-  In_channel.read_all "day_6_input.txt"
-  |> position_of_k_distinct ~k |> printf "%c: %d\n" part
+let%expect_test _ =
+  List.iter
+    [ ('a', 4); ('b', 14) ]
+    ~f:(fun (part, k) ->
+      In_channel.read_all "day_6_input.txt"
+      |> position_of_k_distinct ~k |> printf "%c: %d\n" part);
+  [%expect {|
+  a: 1480
+  b: 2746|}]
