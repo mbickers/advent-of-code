@@ -4,7 +4,6 @@ let ( >> ) f g x = g (f x)
 
 let heights =
   In_channel.read_lines "day_8_input.txt"
-  (* formatting comment *)
   |> List.map
        ~f:(String.to_list >> List.map ~f:(String.of_char >> Int.of_string))
 
