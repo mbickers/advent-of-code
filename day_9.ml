@@ -8,24 +8,6 @@ module Point = struct
   end
 
   include T
-
-  let move (x, y) direction =
-    match direction with
-    | `Right -> (x + 1, y)
-    | `Left -> (x - 1, y)
-    | `Up -> (x, y + 1)
-    | `Down -> (x, y - 1)
-
-  let distance_squared (x1, y1) (x2, y2) =
-    ((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2))
-
-  let closest_to t positions =
-    List.min_elt
-      ~compare:(fun p1 p2 -> distance_squared t p1 - distance_squared t p2)
-      positions
-
-  let touching t1 t2 = distance_squared t1 t2 <= 2
-
   include Comparable.Make (T)
 end
 
@@ -44,24 +26,37 @@ let parse line =
   | _ -> failwith "unable to parse input line"
 
 let update_knot ~updated_predecessor:(px, py) ~current:(cx, cy) =
-  match Point.touching (px, py) (cx, cy) with
-  | true -> (cx, cy)
-  | false when px - cx = 0 -> (px, (py + cy) / 2)
-  | false when py - cy = 0 -> ((px + cx) / 2, py)
+  match (abs (px - cx), abs (py - cy)) with
+  | 0, 0 | 1, 0 | 0, 1 | 1, 1 -> (cx, cy)
+  | 0, 2 -> (px, (py + cy) / 2)
+  | 2, 0 -> ((px + cx) / 2, py)
   | _ ->
-      let diagonal_positions =
+      let diagonal_moves =
         [
           (cx + 1, cy + 1); (cx - 1, cy + 1); (cx + 1, cy - 1); (cx - 1, cy - 1);
         ]
       in
-      Point.closest_to (px, py) diagonal_positions |> Option.value_exn
+      let squared_distance (x1, y1) (x2, y2) =
+        ((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2))
+      in
+      List.min_elt
+        ~compare:(fun p1 p2 ->
+          squared_distance (px, py) p1 - squared_distance (px, py) p2)
+        diagonal_moves
+      |> Option.value_exn
 
 let tail_positions ~length moves =
   let process_step (rope_positions, tail_positions) ~direction =
     match rope_positions with
     | [] -> failwith "cannot move empty rope"
-    | head :: rest ->
-        let updated_head = Point.move head direction in
+    | (hx, hy) :: rest ->
+        let updated_head =
+          match direction with
+          | `Right -> (hx + 1, hy)
+          | `Left -> (hx - 1, hy)
+          | `Up -> (hx, hy + 1)
+          | `Down -> (hx, hy - 1)
+        in
         let updated_tail, updated_rest =
           List.fold_map rest ~init:updated_head
             ~f:(fun updated_predecessor current ->
