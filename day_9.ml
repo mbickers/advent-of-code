@@ -8,7 +8,6 @@ module Point = struct
   end
 
   include T
-  include Comparable.Make (T)
 
   let move (x, y) direction =
     match direction with
@@ -19,6 +18,15 @@ module Point = struct
 
   let distance_squared (x1, y1) (x2, y2) =
     ((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2))
+
+  let closest_to t positions =
+    List.min_elt
+      ~compare:(fun p1 p2 -> distance_squared t p1 - distance_squared t p2)
+      positions
+
+  let touching t1 t2 = distance_squared t1 t2 <= 2
+
+  include Comparable.Make (T)
 end
 
 let parse line =
@@ -35,26 +43,47 @@ let parse line =
       (direction, Int.of_string magnitude)
   | _ -> failwith "unable to parse input line"
 
-let part_a lines =
-  let _, _, positions_visited =
-    let initial = (0, 0) in
-    List.fold lines
-      ~init:(initial, initial, Point.Set.singleton initial)
-      ~f:(fun current_state line ->
-        let direction, magnitude = parse line in
-        let process_step (current_head, current_tail, visited_positions)
-            ~direction =
-          let new_head = Point.move current_head direction in
-          let new_tail =
-            match Point.distance_squared new_head current_tail > 2 with
-            | true -> current_head
-            | false -> current_tail
-          in
-          (new_head, new_tail, Set.add visited_positions new_tail)
+let update_knot ~updated_predecessor:(px, py) ~current:(cx, cy) =
+  match Point.touching (px, py) (cx, cy) with
+  | true -> (cx, cy)
+  | false when px - cx = 0 -> (px, (py + cy) / 2)
+  | false when py - cy = 0 -> ((px + cx) / 2, py)
+  | _ ->
+      let diagonal_positions =
+        [
+          (cx + 1, cy + 1); (cx - 1, cy + 1); (cx + 1, cy - 1); (cx - 1, cy - 1);
+        ]
+      in
+      Point.closest_to (px, py) diagonal_positions |> Option.value_exn
+
+let tail_positions ~length moves =
+  let process_step (rope_positions, tail_positions) ~direction =
+    match rope_positions with
+    | [] -> failwith "cannot move empty rope"
+    | head :: rest ->
+        let updated_head = Point.move head direction in
+        let updated_tail, updated_rest =
+          List.fold_map rest ~init:updated_head
+            ~f:(fun updated_predecessor current ->
+              let updated = update_knot ~updated_predecessor ~current in
+              (updated, updated))
         in
+        (updated_head :: updated_rest, Set.add tail_positions updated_tail)
+  in
+  let _, tail_positions =
+    let initial = (0, 0) in
+    List.fold moves
+      ~init:(List.init length ~f:(fun _ -> initial), Point.Set.singleton initial)
+      ~f:(fun current_state (direction, magnitude) ->
         Fn.apply_n_times ~n:magnitude (process_step ~direction) current_state)
   in
-  Set.length positions_visited
+  tail_positions
+
+let part_a lines =
+  List.map ~f:parse lines |> tail_positions ~length:2 |> Set.length
+
+let part_b lines =
+  List.map ~f:parse lines |> tail_positions ~length:10 |> Set.length
 
 let%expect_test _ =
   let test_input = {|R 4
@@ -72,38 +101,6 @@ let%expect_test _ =
   part_a (In_channel.read_lines "day_9_input.txt") |> printf "%d\n";
   [%expect "6311"]
 
-let part_b lines =
-  let _, positions_visited =
-    let length = 10 in
-    let initial = (0, 0) in
-    List.fold lines
-      ~init:(List.init length ~f:(fun _ -> initial), Point.Set.singleton initial)
-      ~f:(fun current_state line ->
-        let direction, magnitude = parse line in
-        let process_step (old_positions, visited_positions) ~direction =
-          let old_head, old_rest =
-            (List.hd_exn old_positions, List.tl_exn old_positions)
-          in
-          let new_head = Point.move old_head direction in
-          let new_rest =
-            List.folding_map old_rest ~init:(new_head, old_head)
-              ~f:(fun (new_pred, old_pred) old_current_knot ->
-                let new_current_knot =
-                  match
-                    Point.distance_squared new_pred old_current_knot > 2
-                  with
-                  | true -> old_pred
-                  | false -> old_current_knot
-                in
-                ((new_current_knot, old_current_knot), new_current_knot))
-          in
-          ( new_head :: new_rest,
-            Set.add visited_positions (List.last_exn new_rest) )
-        in
-        Fn.apply_n_times ~n:magnitude (process_step ~direction) current_state)
-  in
-  Set.length positions_visited
-
 let%expect_test _ =
   let test_input = {|R 5
 U 8
@@ -116,3 +113,7 @@ U 20|} in
   let result = part_b (String.split_lines test_input) in
   printf "%d\n" result;
   [%expect "36"]
+
+let%expect_test _ =
+  part_b (In_channel.read_lines "day_9_input.txt") |> printf "%d\n";
+  [%expect "2482"]
