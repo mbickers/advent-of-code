@@ -73,30 +73,21 @@ let%expect_test _ =
   [%expect "6420"]
 
 let part_b packet_pairs =
-  let divider1, divider2 =
-    ( Packet.List [ Packet.List [ Packet.Int 2 ] ],
-      Packet.List [ Packet.List [ Packet.Int 6 ] ] )
-  in
+  let divider1 = Packet.List [ Packet.List [ Packet.Int 2 ] ]
+  and divider2 = Packet.List [ Packet.List [ Packet.Int 6 ] ] in
   let packets =
     List.concat_map ~f:(fun (left, right) -> [ left; right ]) packet_pairs
     @ [ divider1; divider2 ]
   in
   let sorted_packets = List.sort packets ~compare:Packet.compare in
-  let index1 =
+  let offset_index ~of_:target =
     List.find_mapi_exn
       ~f:(fun idx packet ->
-        Option.some_if (Packet.compare packet divider1 = 0) idx)
+        Option.some_if (Packet.compare packet target = 0) idx)
       sorted_packets
     + 1
   in
-  let index2 =
-    List.find_mapi_exn
-      ~f:(fun idx packet ->
-        Option.some_if (Packet.compare packet divider2 = 0) idx)
-      sorted_packets
-    + 1
-  in
-  index1 * index2
+  offset_index ~of_:divider1 * offset_index ~of_:divider2
 
 let%expect_test _ =
   In_channel.read_all "day_13_input_test.txt"
