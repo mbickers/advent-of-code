@@ -1,5 +1,7 @@
 open Core
 
+let ( >> ) f g x = g (f x)
+
 module Point = struct
   module T = struct
     type t = { x : int; y : int } [@@deriving compare, sexp]
@@ -9,42 +11,43 @@ module Point = struct
   include Comparable.Make (T)
 end
 
-let parse input =
-  let parse_line line =
-    line
-    |> String.substr_replace_all ~pattern:" -> " ~with_:";"
-    |> String.split ~on:';'
-    |> List.map ~f:(fun pair ->
-           let x, y = String.lsplit2_exn ~on:',' pair in
-           { Point.x = Int.of_string x; y = Int.of_string y })
-  in
-  input |> String.split_lines |> List.map ~f:parse_line
+let parse =
+  String.split_lines
+  >> List.map
+       ~f:
+         (String.substr_replace_all ~pattern:" -> " ~with_:";"
+         >> String.split ~on:';'
+         >> List.map ~f:(fun pair ->
+                let x, y = String.lsplit2_exn ~on:',' pair in
+                { Point.x = Int.of_string x; y = Int.of_string y }))
 
-let rock_points rock_paths =
+let rock_points =
   let points_in_segment { Point.x = start_x; y = start_y }
       { Point.x = end_x; y = end_y } =
-    Point.Set.of_list
-    @@
-    match start_x = end_x with
-    | true ->
-        List.init
-          (abs (start_y - end_y) + 1)
-          ~f:(fun offset ->
-            { Point.x = start_x; y = min start_y end_y + offset })
-    | false ->
-        List.init
-          (abs (start_x - end_x) + 1)
-          ~f:(fun offset ->
-            { Point.x = min start_x end_x + offset; y = start_y })
+    let list =
+      match start_x = end_x with
+      | true ->
+          List.init
+            (abs (start_y - end_y) + 1)
+            ~f:(fun offset ->
+              { Point.x = start_x; y = min start_y end_y + offset })
+      | false ->
+          List.init
+            (abs (start_x - end_x) + 1)
+            ~f:(fun offset ->
+              { Point.x = min start_x end_x + offset; y = start_y })
+    in
+    Point.Set.of_list list
   in
-  List.fold rock_paths ~init:Point.Set.empty ~f:(fun points rock_path ->
-      let points_in_path =
-        List.map2_exn
-          (List.drop_last_exn rock_path)
-          (List.tl_exn rock_path) ~f:points_in_segment
-        |> Point.Set.union_list
-      in
-      Set.union points points_in_path)
+  let points_in_path =
+    let map_consecutive_pairs list =
+      List.map2_exn (List.drop_last_exn list) (List.tl_exn list)
+    in
+    map_consecutive_pairs ~f:points_in_segment >> Point.Set.union_list
+  in
+  List.map ~f:points_in_path >> Point.Set.union_list
+
+let y_max = Point.Set.fold ~init:0 ~f:(fun max { y; _ } -> Int.max y max)
 
 let grains_until_end ~rock_points ~y_max ~y_max_is_floor =
   let grain_source = { Point.x = 500; y = 0 } in
@@ -73,17 +76,17 @@ let grains_until_end ~rock_points ~y_max ~y_max_is_floor =
     | `Rest resting_point when Point.equal grain_source resting_point ->
         `Source_filled_after (grains_dropped + 1)
     | `Rest resting_point ->
-        helper ~grains_dropped:(grains_dropped + 1)
-          ~filled_points:(Set.add filled_points resting_point)
+        let filled_points = Set.add filled_points resting_point in
+        helper ~grains_dropped:(grains_dropped + 1) ~filled_points
   in
   helper ~grains_dropped:0 ~filled_points:rock_points
 
 let part_a rock_paths =
   let rock_points = rock_points rock_paths in
-  let y_max =
-    Point.Set.fold rock_points ~init:0 ~f:(fun max { y; _ } -> Int.max y max)
-  in
-  match grains_until_end ~rock_points ~y_max ~y_max_is_floor:false with
+  match
+    grains_until_end ~rock_points ~y_max:(y_max rock_points)
+      ~y_max_is_floor:false
+  with
   | `Abyss_after grains -> grains
   | `Source_filled_after _ -> failwith "source should never be filled in part a"
 
@@ -98,11 +101,8 @@ let%expect_test _ =
 
 let part_b rock_paths =
   let rock_points = rock_points rock_paths in
-  let y_max =
-    Point.Set.fold rock_points ~init:0 ~f:(fun max { y; _ } -> Int.max y max)
-    + 2
-  in
-  match grains_until_end ~rock_points ~y_max ~y_max_is_floor:true with
+  let y_floor = y_max rock_points + 2 in
+  match grains_until_end ~rock_points ~y_max:y_floor ~y_max_is_floor:true with
   | `Abyss_after _ -> failwith "grains should never reach abyss in part b"
   | `Source_filled_after grains -> grains
 
