@@ -138,6 +138,15 @@ let part_a all_valves =
   |> List.max_elt ~compare:Int.compare
   |> Option.value_exn
 
+let%expect_test _ =
+  "day_16_input_test.txt" |> In_channel.read_all |> parse |> part_a
+  |> printf "%d\n";
+  [%expect "1651"]
+
+let%expect_test _ =
+  "day_16_input.txt" |> In_channel.read_all |> parse |> part_a |> printf "%d\n";
+  [%expect "1716"]
+
 let part_b all_valves =
   let useful_valves, all_useful_valve_sets, flow_rates =
     Useful_valve_set.initial_setup ~all_valves
@@ -161,25 +170,6 @@ let part_b all_valves =
   |> List.max_elt ~compare:Int.compare
   |> Option.value_exn
 
-let () =
-  Command.basic ~summary:"advent of code"
-    (Command.Param.return (fun () ->
-         "day_16_input.txt" |> In_channel.read_all |> parse |> part_b
-         |> printf "%d\n"))
-  |> Command.run
-
-(*
-let%expect_test _ =
-  "day_16_input_test.txt" |> In_channel.read_all |> parse |> part_a
-  |> printf "%d\n";
-  [%expect "1651"]
-
-let%expect_test _ =
-  "day_16_input.txt" |> In_channel.read_all |> parse |> part_a |> printf "%d\n";
-  [%expect "1716"]
-
-let part_b _ = 4
-
 let%expect_test _ =
   "day_16_input_test.txt" |> In_channel.read_all |> parse |> part_b
   |> printf "%d\n";
@@ -187,6 +177,4 @@ let%expect_test _ =
 
 let%expect_test _ =
   "day_16_input.txt" |> In_channel.read_all |> parse |> part_b |> printf "%d\n";
-  [%expect "1707"]
-
-*)
+  [%expect "2504"]
