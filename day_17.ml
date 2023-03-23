@@ -44,48 +44,54 @@ module Rock_chamber = struct
     in
     Sequence.length row_points = 7
 
-  let add t rock =
-    let added = Set.union t (Point.Set.of_list rock) in
-    (match
-       List.exists rock ~f:(fun { Point.row; _ } -> row_full added ~row)
-     with
-    | true -> printf "added rock that completes row\n%!"
-    | false -> ());
-    added
+  let add t rock = Set.union t (Point.Set.of_list rock)
 end
 
 let drop_rocks ~num_rocks wind =
-  printf "Wind length: %d\n" (String.length wind);
-  let rocks = Sequence.(take (cycle_list_exn rocks) num_rocks) in
   let wind =
-    String.to_list wind
-    |> List.map ~f:(function '<' -> -1 | '>' -> 1 | _ -> failwith "bad input")
+    String.to_array wind
+    |> Array.map ~f:(function
+         | '<' -> -1
+         | '>' -> 1
+         | _ -> failwith "bad input")
   in
-  let end_chamber, _ =
-    Sequence.foldi rocks ~init:(Rock_chamber.empty, 0)
-      ~f:(fun rock_idx (rock_chamber, wind_idx) rock ->
-        printf "%d, %d\n%!" (rock_idx % 5) (wind_idx % List.length wind);
-        let rock =
-          Point.offset_rock rock ~cols:2
-            ~rows:(Rock_chamber.height rock_chamber + 3)
+  let drop_rock ~rock_chamber ~rock_idx ~wind_idx =
+    let rock =
+      Point.offset_rock
+        (List.nth_exn rocks rock_idx)
+        ~cols:2
+        ~rows:(Rock_chamber.height rock_chamber + 3)
+    in
+    let rec simulate rock wind_idx =
+      let current_wind = Array.get wind (wind_idx % Array.length wind) in
+      let pushed_rock =
+        let pushed_rock = Point.offset_rock rock ~rows:0 ~cols:current_wind in
+        match Rock_chamber.would_collide rock_chamber pushed_rock with
+        | true -> rock
+        | false -> pushed_rock
+      in
+      let dropped_rock = Point.offset_rock ~rows:(-1) ~cols:0 pushed_rock in
+      match Rock_chamber.would_collide rock_chamber dropped_rock with
+      | true -> (pushed_rock, wind_idx + 1)
+      | false -> simulate dropped_rock (wind_idx + 1)
+    in
+    let rock, wind_idx = simulate rock wind_idx in
+    (Rock_chamber.add rock_chamber rock, wind_idx % Array.length wind)
+  in
+  let rec drop_rocks ~num_rocks ~wind_idx ~rock_idx ~rock_chamber =
+    match num_rocks with
+    | 0 -> (wind_idx, rock_idx, rock_chamber)
+    | num_rocks ->
+        let rock_chamber, wind_idx =
+          drop_rock ~rock_chamber ~rock_idx ~wind_idx
         in
-        let rec simulate rock wind_idx =
-          let current_wind = List.nth_exn wind (wind_idx % List.length wind) in
-          let pushed_rock =
-            let pushed_rock =
-              Point.offset_rock rock ~rows:0 ~cols:current_wind
-            in
-            match Rock_chamber.would_collide rock_chamber pushed_rock with
-            | true -> rock
-            | false -> pushed_rock
-          in
-          let dropped_rock = Point.offset_rock ~rows:(-1) ~cols:0 pushed_rock in
-          match Rock_chamber.would_collide rock_chamber dropped_rock with
-          | true -> (pushed_rock, wind_idx + 1)
-          | false -> simulate dropped_rock (wind_idx + 1)
-        in
-        let rock, wind_idx = simulate rock wind_idx in
-        (Rock_chamber.add rock_chamber rock, wind_idx))
+        drop_rocks ~num_rocks:(num_rocks - 1) ~wind_idx
+          ~rock_idx:((rock_idx + 1) % List.length rocks)
+          ~rock_chamber
+  in
+  let _, _, end_chamber =
+    drop_rocks ~num_rocks ~wind_idx:0 ~rock_idx:0
+      ~rock_chamber:Rock_chamber.empty
   in
   Rock_chamber.height end_chamber
 
@@ -95,8 +101,7 @@ let input = In_channel.read_all "day_17_input.txt"
 let () =
   Command.basic ~summary:"advent of code"
     (Command.Param.return (fun () ->
-         "day_17_input.txt" |> In_channel.read_all
-         |> drop_rocks ~num_rocks:1000000000000
+         "day_17_input.txt" |> In_channel.read_all |> drop_rocks ~num_rocks:2022
          |> printf "%d\n"))
   |> Command.run
 
