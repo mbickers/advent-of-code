@@ -1,8 +1,16 @@
 (library
  (name advent_of_code)
+ (modules day_01)
  (inline_tests
   (deps
    (glob_files *.txt)))
+ (libraries async)
+ (preprocess
+  (pps ppx_jane)))
+
+(executables
+ (modules day_17)
+ (names day_17)
  (libraries async)
  (preprocess
   (pps ppx_jane)))
