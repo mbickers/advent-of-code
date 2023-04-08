@@ -142,169 +142,116 @@ module State = struct
              ~obsidian:(change ~by:(-geode_robot_obsidian)))
     | false -> None
 
-  let try_make_nothing ~blueprint =
-    let {
-      Blueprint.ore_robot_ore;
-      clay_robot_ore;
-      obsidian_robot_ore;
-      obsidian_robot_clay;
-      geode_robot_ore;
-      geode_robot_obsidian;
-      _;
-    } =
-      blueprint
-    in
-    let ore_max =
-      List.max_elt ~compare:Int.compare
-        [ ore_robot_ore; clay_robot_ore; obsidian_robot_ore; geode_robot_ore ]
-      |> Option.value_exn
-    in
-    fun t ->
-      let { ore; clay; obsidian; _ } = t in
-      match
-        Int.( >= ) ore ore_max
-        && Int.( >= ) clay obsidian_robot_clay
-        && Int.( >= ) obsidian geode_robot_obsidian
-      with
-      | true -> None
-      | false -> Some t
-
   let branch ~blueprint =
-    let try_make_nothing = try_make_nothing ~blueprint in
+    let should_keep =
+      let {
+        Blueprint.ore_robot_ore;
+        clay_robot_ore;
+        obsidian_robot_ore;
+        obsidian_robot_clay;
+        geode_robot_ore;
+        geode_robot_obsidian;
+        _;
+      } =
+        blueprint
+      in
+      let ore_max =
+        List.max_elt ~compare:Int.compare
+          [ ore_robot_ore; clay_robot_ore; obsidian_robot_ore; geode_robot_ore ]
+        |> Option.value_exn
+      in
+      let open Int in
+      fun { ore; clay; obsidian; ore_robots; clay_robots; obsidian_robots; _ } ->
+        (not
+           (ore > ore_max && clay > obsidian_robot_clay
+           && obsidian > geode_robot_obsidian))
+        && (not (ore_robots > ore_max))
+        && (not (clay_robots > obsidian_robot_clay))
+        && not (obsidian_robots > geode_robot_obsidian)
+    in
     fun t ->
-      let { geode_robots; _ } = t in
+      let { obsidian_robots; clay_robots; geode_robots; _ } = t in
       let branches =
-        [
-          try_make_nothing t;
-          try_make_clay_robot ~blueprint t;
-          try_make_ore_robot ~blueprint t;
-          try_make_obsidian_robot ~blueprint t;
-          try_make_geode_robot ~blueprint t;
-        ]
-        |> List.filter_opt
+        (match (clay_robots, obsidian_robots) with
+        | 0, _ ->
+            [
+              try_make_clay_robot ~blueprint t;
+              Some t;
+              try_make_ore_robot ~blueprint t;
+            ]
+        | _, 0 ->
+            [
+              try_make_obsidian_robot ~blueprint t;
+              Some t;
+              try_make_clay_robot ~blueprint t;
+              try_make_ore_robot ~blueprint t;
+            ]
+        | _, _ ->
+            [
+              try_make_geode_robot ~blueprint t;
+              Some t;
+              try_make_obsidian_robot ~blueprint t;
+              try_make_clay_robot ~blueprint t;
+              try_make_ore_robot ~blueprint t;
+            ])
+        |> List.filter_opt |> List.filter ~f:should_keep
         |> List.map ~f:(collect_resources ~old_t:t)
       in
       (geode_robots, branches)
 
-  let greedy_geodes_memoized ~blueprint =
-    let try_make_nothing = try_make_nothing ~blueprint in
-    let module Key = struct
-      type nonrec t = int * t [@@deriving hash, sexp, compare]
-    end in
-    let memo = Hashtbl.create (module Key) in
-    fun ~time t ->
-      let rec helper ~time t =
-        match time with
-        | 0 -> 0
-        | _ -> (
-            match Hashtbl.find memo (time, t) with
-            | Some value -> value
-            | None ->
-                let { obsidian_robots; clay_robots; geode_robots; _ } = t in
-                let branches =
-                  match (clay_robots, obsidian_robots) with
-                  | 0, _ ->
-                      [ try_make_clay_robot ~blueprint t; try_make_nothing t ]
-                  | _, 0 ->
-                      [
-                        try_make_obsidian_robot ~blueprint t; try_make_nothing t;
-                      ]
-                  | _, _ ->
-                      [ try_make_geode_robot ~blueprint t; try_make_nothing t ]
-                in
-                let branch = List.filter_opt branches |> List.hd_exn in
-                let advanced = collect_resources ~old_t:t branch in
-                let result = geode_robots + helper ~time:(time - 1) advanced in
-                Hashtbl.set memo ~key:(time, t) ~data:result;
-                result)
-      in
-      helper ~time t
-
-  let geode_lower_bound ~time { geode_robots; _ } = time * geode_robots
-
   let geode_upper_bound ~time { geode_robots; _ } =
     (time * geode_robots) + (time * (time - 1) / 2)
-
-  let strictly_worse t1 t2 =
-    match equal t1 t2 with
-    | true -> false
-    | false ->
-        let to_list
-            {
-              ore_robots;
-              clay_robots;
-              obsidian_robots;
-              geode_robots;
-              ore;
-              clay;
-              obsidian;
-            } =
-          [
-            ore_robots;
-            clay_robots;
-            obsidian_robots;
-            geode_robots;
-            ore;
-            clay;
-            obsidian;
-          ]
-        in
-        List.for_all2_exn (to_list t1) (to_list t2) ~f:Int.( <= )
 end
-
-let filter_strictly_worse geode_counts =
-  Map.filteri geode_counts ~f:(fun ~key:victim_state ~data:victim_geode_count ->
-      Map.for_alli geode_counts ~f:(fun ~key:state ~data:geode_count ->
-          victim_geode_count >= geode_count
-          || not (State.strictly_worse victim_state state)))
 
 let blueprint_geodes ~blueprint ~time =
   let branch_state = State.branch ~blueprint in
-  let rec helper ~time ~geode_counts =
-    printf "size at %d: %d\n%!" time (Map.length geode_counts);
+  let module Key = struct
+    type t = int * State.t [@@deriving hash, sexp, compare]
+  end in
+  let memo = Hashtbl.create (module Key) in
+  let best_so_far = ref 0 in
+  let rec dfs ~time ~current_geodes state =
     match time with
-    | 0 -> Map.data geode_counts |> List.max_elt ~compare:Int.compare
-    | _ ->
-        let geode_counts =
-          Map.to_alist geode_counts
-          |> List.map ~f:(fun (state, geode_count) ->
-                 let new_geodes, branches = branch_state state in
-                 List.map branches ~f:(fun branch ->
-                     (branch, geode_count + new_geodes)))
-          |> List.join |> State.Map.of_alist_multi
-          |> Map.map ~f:(fun geode_counts ->
-                 List.max_elt ~compare:Int.compare geode_counts
-                 |> Option.value_exn)
-        in
-        let max_lower_bound =
-          Map.fold geode_counts ~init:0
-            ~f:(fun ~key:state ~data:geode_count max_lower_bound ->
-              Int.max max_lower_bound
-                (geode_count + State.geode_lower_bound ~time state))
-        in
-        let geode_counts =
-          Map.filteri geode_counts ~f:(fun ~key:state ~data:geode_count ->
-              geode_count + State.geode_upper_bound ~time state
-              >= max_lower_bound)
-        in
-        helper ~time:(time - 1) ~geode_counts
+    | 0 -> Some 0
+    | _ -> (
+        match
+          current_geodes + State.geode_upper_bound ~time state > !best_so_far
+        with
+        | false -> None
+        | true -> (
+            match Hashtbl.find memo (time, state) with
+            | Some geodes -> Some geodes
+            | None -> (
+                let new_geodes, branches = branch_state state in
+                let best_branch_geodes =
+                  List.map branches
+                    ~f:
+                      (dfs ~time:(time - 1)
+                         ~current_geodes:(current_geodes + new_geodes))
+                  |> List.filter_opt
+                  |> List.max_elt ~compare:Int.compare
+                in
+                match best_branch_geodes with
+                | None -> None
+                | Some best_branch_geodes ->
+                    let result = best_branch_geodes + new_geodes in
+                    Hashtbl.set memo ~key:(time, state) ~data:result;
+                    (match !best_so_far < result with
+                    | true -> best_so_far := result
+                    | false -> ());
+                    Some result)))
   in
-  helper ~time ~geode_counts:(State.Map.singleton State.initial 0)
-  |> Option.value_exn
+  dfs ~time ~current_geodes:0 State.initial |> Option.value_exn
 
 let%expect_test _ =
   blueprint_geodes ~blueprint:test_blueprint ~time:24 |> printf "%d\n";
   [%expect "9"]
 
-(*
 let%expect_test _ =
   let blueprint = List.hd_exn test_input in
   blueprint_geodes ~blueprint ~time:32 |> printf "%d\n";
   [%expect "62"]
-*)
 
-(*
-    
 let part_a blueprints =
   let quality_levels =
     List.map blueprints ~f:(fun blueprint ->
@@ -332,5 +279,4 @@ let part_b blueprints =
 
 let%expect_test _ =
   input |> part_b |> printf "%d\n";
-  [%expect "1177"]
- *)
+  [%expect "62744"]

@@ -13,7 +13,7 @@ let () =
   Command.basic ~summary:"advent of code"
     (Command.Param.return (fun () ->
          let result =
-           time ~name:"test@32" ~f:(fun () ->
+           time ~name:"test@24" ~f:(fun () ->
                Day_19.blueprint_geodes
                  ~blueprint:(List.nth_exn Day_19.input 2)
                  ~time:32)
