@@ -54,7 +54,7 @@ module State = struct
       clay : int;
       obsidian : int;
     }
-    [@@deriving sexp, compare, fields]
+    [@@deriving sexp, compare, fields, hash]
   end
 
   include T
@@ -71,128 +71,154 @@ module State = struct
       obsidian = 0;
     }
 
-  let branch
-      ~blueprint:
-        {
-          Blueprint.ore_robot_ore;
-          clay_robot_ore;
-          obsidian_robot_ore;
-          obsidian_robot_clay;
-          geode_robot_ore;
-          geode_robot_obsidian;
-          _;
-        } =
+  let collect_resources ~old_t t =
+    let { ore_robots; clay_robots; obsidian_robots; _ } = old_t in
+    let ignore _ _ x = x in
+    let change ~by _ _ x = x + by in
+    Fields.Direct.map t ~ore_robots:ignore ~clay_robots:ignore
+      ~obsidian_robots:ignore ~geode_robots:ignore ~ore:(change ~by:ore_robots)
+      ~clay:(change ~by:clay_robots)
+      ~obsidian:(change ~by:obsidian_robots)
+
+  let try_make_ore_robot ~blueprint t =
+    let { ore; _ } = t in
+    let { Blueprint.ore_robot_ore; _ } = blueprint in
+    let ignore _ _ x = x in
+    let change ~by _ _ x = x + by in
+    match Int.( >= ) ore ore_robot_ore with
+    | true ->
+        Some
+          (Fields.Direct.map t ~ore_robots:(change ~by:1) ~clay_robots:ignore
+             ~obsidian_robots:ignore ~geode_robots:ignore
+             ~ore:(change ~by:(-ore_robot_ore))
+             ~clay:ignore ~obsidian:ignore)
+    | false -> None
+
+  let try_make_clay_robot ~blueprint t =
+    let { ore; _ } = t in
+    let { Blueprint.clay_robot_ore; _ } = blueprint in
+    let ignore _ _ x = x in
+    let change ~by _ _ x = x + by in
+    match Int.( >= ) ore clay_robot_ore with
+    | true ->
+        Some
+          (Fields.Direct.map t ~ore_robots:ignore ~clay_robots:(change ~by:1)
+             ~obsidian_robots:ignore ~geode_robots:ignore
+             ~ore:(change ~by:(-clay_robot_ore))
+             ~clay:ignore ~obsidian:ignore)
+    | false -> None
+
+  let try_make_obsidian_robot ~blueprint t =
+    let { ore; clay; _ } = t in
+    let { Blueprint.obsidian_robot_clay; obsidian_robot_ore; _ } = blueprint in
+    let ignore _ _ x = x in
+    let change ~by _ _ x = x + by in
+    match
+      Int.( >= ) ore obsidian_robot_ore && Int.( >= ) clay obsidian_robot_clay
+    with
+    | true ->
+        Some
+          (Fields.Direct.map t ~ore_robots:ignore ~clay_robots:ignore
+             ~obsidian_robots:(change ~by:1) ~geode_robots:ignore
+             ~ore:(change ~by:(-obsidian_robot_ore))
+             ~clay:(change ~by:(-obsidian_robot_clay))
+             ~obsidian:ignore)
+    | false -> None
+
+  let try_make_geode_robot ~blueprint t =
+    let { ore; obsidian; _ } = t in
+    let { Blueprint.geode_robot_ore; geode_robot_obsidian; _ } = blueprint in
+    let ignore _ _ x = x in
+    let change ~by _ _ x = x + by in
+    match
+      Int.( >= ) ore geode_robot_ore && Int.( >= ) obsidian geode_robot_obsidian
+    with
+    | true ->
+        Some
+          (Fields.Direct.map t ~ore_robots:ignore ~clay_robots:ignore
+             ~obsidian_robots:ignore ~geode_robots:(change ~by:1)
+             ~ore:(change ~by:(-geode_robot_ore))
+             ~clay:ignore
+             ~obsidian:(change ~by:(-geode_robot_obsidian)))
+    | false -> None
+
+  let try_make_nothing ~blueprint =
+    let {
+      Blueprint.ore_robot_ore;
+      clay_robot_ore;
+      obsidian_robot_ore;
+      obsidian_robot_clay;
+      geode_robot_ore;
+      geode_robot_obsidian;
+      _;
+    } =
+      blueprint
+    in
     let ore_max =
       List.max_elt ~compare:Int.compare
         [ ore_robot_ore; clay_robot_ore; obsidian_robot_ore; geode_robot_ore ]
       |> Option.value_exn
     in
-    fun {
-          ore_robots;
-          clay_robots;
-          obsidian_robots;
-          geode_robots;
-          ore;
-          clay;
-          obsidian;
-        } ->
-      let new_ore, new_clay, new_obsidian, mined_geodes =
-        ( ore + ore_robots,
-          clay + clay_robots,
-          obsidian + obsidian_robots,
-          geode_robots )
-      in
-      let open Int in
-      let make_nothing =
-        match
-          ore >= ore_max
-          && clay >= obsidian_robot_clay
-          && obsidian >= geode_robot_obsidian
-        with
-        | true -> None
-        | false ->
-            Some
-              {
-                ore_robots;
-                clay_robots;
-                obsidian_robots;
-                geode_robots;
-                ore = new_ore;
-                clay = new_clay;
-                obsidian = new_obsidian;
-              }
-      in
-      let make_ore_robot =
-        match ore >= ore_robot_ore with
-        | true ->
-            Some
-              {
-                ore_robots = ore_robots + 1;
-                clay_robots;
-                obsidian_robots;
-                geode_robots;
-                ore = new_ore - ore_robot_ore;
-                clay = new_clay;
-                obsidian = new_obsidian;
-              }
-        | false -> None
-      in
-      let make_clay_robot =
-        match ore >= clay_robot_ore with
-        | true ->
-            Some
-              {
-                ore_robots;
-                clay_robots = clay_robots + 1;
-                obsidian_robots;
-                geode_robots;
-                ore = new_ore - clay_robot_ore;
-                clay = new_clay;
-                obsidian = new_obsidian;
-              }
-        | false -> None
-      in
-      let make_obsidian_robot =
-        match ore >= obsidian_robot_ore && clay >= obsidian_robot_clay with
-        | true ->
-            Some
-              {
-                ore_robots;
-                clay_robots;
-                obsidian_robots = obsidian_robots + 1;
-                geode_robots;
-                ore = new_ore - obsidian_robot_ore;
-                clay = new_clay - obsidian_robot_clay;
-                obsidian = new_obsidian;
-              }
-        | false -> None
-      in
-      let make_geode_robot =
-        match ore >= geode_robot_ore && obsidian >= geode_robot_obsidian with
-        | true ->
-            Some
-              {
-                ore_robots;
-                clay_robots;
-                obsidian_robots;
-                geode_robots = geode_robots + 1;
-                ore = new_ore - geode_robot_ore;
-                clay = new_clay;
-                obsidian = new_obsidian - geode_robot_obsidian;
-              }
-        | false -> None
-      in
+    fun t ->
+      let { ore; clay; obsidian; _ } = t in
+      match
+        Int.( >= ) ore ore_max
+        && Int.( >= ) clay obsidian_robot_clay
+        && Int.( >= ) obsidian geode_robot_obsidian
+      with
+      | true -> None
+      | false -> Some t
+
+  let branch ~blueprint =
+    let try_make_nothing = try_make_nothing ~blueprint in
+    fun t ->
+      let { geode_robots; _ } = t in
       let branches =
         [
-          make_nothing;
-          make_ore_robot;
-          make_clay_robot;
-          make_obsidian_robot;
-          make_geode_robot;
+          try_make_nothing t;
+          try_make_clay_robot ~blueprint t;
+          try_make_ore_robot ~blueprint t;
+          try_make_obsidian_robot ~blueprint t;
+          try_make_geode_robot ~blueprint t;
         ]
         |> List.filter_opt
+        |> List.map ~f:(collect_resources ~old_t:t)
       in
-      (mined_geodes, branches)
+      (geode_robots, branches)
+
+  let greedy_geodes_memoized ~blueprint =
+    let try_make_nothing = try_make_nothing ~blueprint in
+    let module Key = struct
+      type nonrec t = int * t [@@deriving hash, sexp, compare]
+    end in
+    let memo = Hashtbl.create (module Key) in
+    fun ~time t ->
+      let rec helper ~time t =
+        match time with
+        | 0 -> 0
+        | _ -> (
+            match Hashtbl.find memo (time, t) with
+            | Some value -> value
+            | None ->
+                let { obsidian_robots; clay_robots; geode_robots; _ } = t in
+                let branches =
+                  match (clay_robots, obsidian_robots) with
+                  | 0, _ ->
+                      [ try_make_clay_robot ~blueprint t; try_make_nothing t ]
+                  | _, 0 ->
+                      [
+                        try_make_obsidian_robot ~blueprint t; try_make_nothing t;
+                      ]
+                  | _, _ ->
+                      [ try_make_geode_robot ~blueprint t; try_make_nothing t ]
+                in
+                let branch = List.filter_opt branches |> List.hd_exn in
+                let advanced = collect_resources ~old_t:t branch in
+                let result = geode_robots + helper ~time:(time - 1) advanced in
+                Hashtbl.set memo ~key:(time, t) ~data:result;
+                result)
+      in
+      helper ~time t
 
   let geode_lower_bound ~time { geode_robots; _ } = time * geode_robots
 
