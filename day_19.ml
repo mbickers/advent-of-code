@@ -1,17 +1,14 @@
 open Core
 
-module Resource = struct
-  type t = Ore | Clay | Obsidian | Geode [@@deriving sexp, equal, compare]
-end
-
-module Robot = struct
-  type t = Robot of Resource.t [@@deriving sexp, equal, compare]
-end
-
 module Blueprint = struct
   type t = {
     id : int;
-    robot_costs : (Robot.t, (Resource.t, int) List.Assoc.t) List.Assoc.t;
+    ore_robot_ore : int;
+    clay_robot_ore : int;
+    obsidian_robot_ore : int;
+    obsidian_robot_clay : int;
+    geode_robot_ore : int;
+    geode_robot_obsidian : int;
   }
 end
 
@@ -23,35 +20,41 @@ let parse_input input =
        robot costs %d ore and %d obsidian.%_s"
       (fun
         id
-        ore_ore
-        clay_ore
-        obsidian_ore
-        obsidian_clay
-        geode_ore
-        geode_obsidian
+        ore_robot_ore
+        clay_robot_ore
+        obsidian_robot_ore
+        obsidian_robot_clay
+        geode_robot_ore
+        geode_robot_obsidian
       ->
-        let robot_costs =
-          [
-            (Robot.Robot Ore, [ (Resource.Ore, ore_ore) ]);
-            (Robot Clay, [ (Ore, clay_ore) ]);
-            (Robot Obsidian, [ (Ore, obsidian_ore); (Clay, obsidian_clay) ]);
-            (Robot Geode, [ (Ore, geode_ore); (Obsidian, geode_obsidian) ]);
-          ]
-        in
-        { Blueprint.id; robot_costs })
+        {
+          Blueprint.id;
+          ore_robot_ore;
+          clay_robot_ore;
+          obsidian_robot_ore;
+          obsidian_robot_clay;
+          geode_robot_ore;
+          geode_robot_obsidian;
+        })
   in
   String.split ~on:'B' input |> List.tl_exn |> List.map ~f:parse_blueprint
 
 let input = In_channel.read_all "day_19_input.txt" |> parse_input
 let test_input = In_channel.read_all "day_19_input_test.txt" |> parse_input
+let test_blueprint = List.hd_exn test_input
 
 module State = struct
   module T = struct
     type t = {
-      robots : (Robot.t * int) List.t;
-      resources : (Resource.t * int) List.t;
+      ore_robots : int;
+      clay_robots : int;
+      obsidian_robots : int;
+      geode_robots : int;
+      ore : int;
+      clay : int;
+      obsidian : int;
     }
-    [@@deriving sexp, compare]
+    [@@deriving sexp, compare, fields]
   end
 
   include T
@@ -59,98 +62,223 @@ module State = struct
 
   let initial =
     {
-      robots =
-        [
-          (Robot Ore, 1); (Robot Clay, 0); (Robot Obsidian, 0); (Robot Geode, 0);
-        ];
-      resources = [ (Ore, 0); (Clay, 0); (Obsidian, 0); (Geode, 0) ];
+      ore_robots = 1;
+      clay_robots = 0;
+      obsidian_robots = 0;
+      geode_robots = 0;
+      ore = 0;
+      clay = 0;
+      obsidian = 0;
     }
 
-  let branch ~blueprint:{ Blueprint.robot_costs; _ } { robots; resources } =
-    let could_build_and_cost =
-      List.filter robot_costs ~f:(fun (_, resource_costs) ->
-          List.for_all resource_costs ~f:(fun (resource, count) ->
-              Int.( >= )
-                (List.Assoc.find_exn resources ~equal:Resource.equal resource)
-                count))
+  let branch
+      ~blueprint:
+        {
+          Blueprint.ore_robot_ore;
+          clay_robot_ore;
+          obsidian_robot_ore;
+          obsidian_robot_clay;
+          geode_robot_ore;
+          geode_robot_obsidian;
+          _;
+        } =
+    let ore_max =
+      List.max_elt ~compare:Int.compare
+        [ ore_robot_ore; clay_robot_ore; obsidian_robot_ore; geode_robot_ore ]
+      |> Option.value_exn
     in
-    let resources =
-      List.map resources ~f:(fun (resource, resource_count) ->
-          let robot_count =
-            List.Assoc.find robots ~equal:Robot.equal (Robot resource)
-            |> Option.value ~default:0
-          in
-          (resource, robot_count + resource_count))
-    in
-    let build_nothing_branch = { robots; resources } in
-    let build_branches =
-      List.map could_build_and_cost
-        ~f:(fun (new_robot, new_robot_resource_costs) ->
-          let robots =
-            List.map robots ~f:(fun (robot, count) ->
-                match Robot.equal robot new_robot with
-                | true -> (robot, count + 1)
-                | false -> (robot, count))
-          in
-          let resources =
-            List.map resources ~f:(fun (resource, count) ->
-                match
-                  List.Assoc.find new_robot_resource_costs ~equal:Resource.equal
-                    resource
-                with
-                | Some cost -> (resource, count - cost)
-                | None -> (resource, count))
-          in
-          { robots; resources })
-    in
-    build_nothing_branch :: build_branches
+    fun {
+          ore_robots;
+          clay_robots;
+          obsidian_robots;
+          geode_robots;
+          ore;
+          clay;
+          obsidian;
+        } ->
+      let new_ore, new_clay, new_obsidian, mined_geodes =
+        ( ore + ore_robots,
+          clay + clay_robots,
+          obsidian + obsidian_robots,
+          geode_robots )
+      in
+      let open Int in
+      let make_nothing =
+        match
+          ore >= ore_max
+          && clay >= obsidian_robot_clay
+          && obsidian >= geode_robot_obsidian
+        with
+        | true -> None
+        | false ->
+            Some
+              {
+                ore_robots;
+                clay_robots;
+                obsidian_robots;
+                geode_robots;
+                ore = new_ore;
+                clay = new_clay;
+                obsidian = new_obsidian;
+              }
+      in
+      let make_ore_robot =
+        match ore >= ore_robot_ore with
+        | true ->
+            Some
+              {
+                ore_robots = ore_robots + 1;
+                clay_robots;
+                obsidian_robots;
+                geode_robots;
+                ore = new_ore - ore_robot_ore;
+                clay = new_clay;
+                obsidian = new_obsidian;
+              }
+        | false -> None
+      in
+      let make_clay_robot =
+        match ore >= clay_robot_ore with
+        | true ->
+            Some
+              {
+                ore_robots;
+                clay_robots = clay_robots + 1;
+                obsidian_robots;
+                geode_robots;
+                ore = new_ore - clay_robot_ore;
+                clay = new_clay;
+                obsidian = new_obsidian;
+              }
+        | false -> None
+      in
+      let make_obsidian_robot =
+        match ore >= obsidian_robot_ore && clay >= obsidian_robot_clay with
+        | true ->
+            Some
+              {
+                ore_robots;
+                clay_robots;
+                obsidian_robots = obsidian_robots + 1;
+                geode_robots;
+                ore = new_ore - obsidian_robot_ore;
+                clay = new_clay - obsidian_robot_clay;
+                obsidian = new_obsidian;
+              }
+        | false -> None
+      in
+      let make_geode_robot =
+        match ore >= geode_robot_ore && obsidian >= geode_robot_obsidian with
+        | true ->
+            Some
+              {
+                ore_robots;
+                clay_robots;
+                obsidian_robots;
+                geode_robots = geode_robots + 1;
+                ore = new_ore - geode_robot_ore;
+                clay = new_clay;
+                obsidian = new_obsidian - geode_robot_obsidian;
+              }
+        | false -> None
+      in
+      let branches =
+        [
+          make_nothing;
+          make_ore_robot;
+          make_clay_robot;
+          make_obsidian_robot;
+          make_geode_robot;
+        ]
+        |> List.filter_opt
+      in
+      (mined_geodes, branches)
 
-  let collect { robots; resources } = { robots; resources }
+  let geode_lower_bound ~time { geode_robots; _ } = time * geode_robots
 
-  let geode_lower_bound ~time { resources; robots } =
-    List.Assoc.find_exn resources ~equal:Resource.equal Geode
-    + (time * List.Assoc.find_exn robots ~equal:Robot.equal (Robot Geode))
+  let geode_upper_bound ~time { geode_robots; _ } =
+    (time * geode_robots) + (time * (time - 1) / 2)
 
-  let geode_upper_bound ~time { resources; robots } =
-    geode_lower_bound ~time { resources; robots } + (time * (time - 1) / 2)
+  let strictly_worse t1 t2 =
+    match equal t1 t2 with
+    | true -> false
+    | false ->
+        let to_list
+            {
+              ore_robots;
+              clay_robots;
+              obsidian_robots;
+              geode_robots;
+              ore;
+              clay;
+              obsidian;
+            } =
+          [
+            ore_robots;
+            clay_robots;
+            obsidian_robots;
+            geode_robots;
+            ore;
+            clay;
+            obsidian;
+          ]
+        in
+        List.for_all2_exn (to_list t1) (to_list t2) ~f:Int.( <= )
 end
 
+let filter_strictly_worse geode_counts =
+  Map.filteri geode_counts ~f:(fun ~key:victim_state ~data:victim_geode_count ->
+      Map.for_alli geode_counts ~f:(fun ~key:state ~data:geode_count ->
+          victim_geode_count >= geode_count
+          || not (State.strictly_worse victim_state state)))
+
 let blueprint_geodes ~blueprint ~time =
-  let rec helper ~time ~branches =
+  let branch_state = State.branch ~blueprint in
+  let rec helper ~time ~geode_counts =
+    printf "size at %d: %d\n%!" time (Map.length geode_counts);
     match time with
-    | 0 ->
-        Set.to_list branches
-        |> List.map ~f:(fun { State.resources; _ } ->
-               List.Assoc.find_exn resources ~equal:Resource.equal Geode)
-        |> List.max_elt ~compare:Int.compare
-        |> Option.value_exn
-    | time ->
-        let branches =
-          Set.to_list branches
-          |> List.map ~f:(State.branch ~blueprint)
-          |> List.join |> State.Set.of_list
+    | 0 -> Map.data geode_counts |> List.max_elt ~compare:Int.compare
+    | _ ->
+        let geode_counts =
+          Map.to_alist geode_counts
+          |> List.map ~f:(fun (state, geode_count) ->
+                 let new_geodes, branches = branch_state state in
+                 List.map branches ~f:(fun branch ->
+                     (branch, geode_count + new_geodes)))
+          |> List.join |> State.Map.of_alist_multi
+          |> Map.map ~f:(fun geode_counts ->
+                 List.max_elt ~compare:Int.compare geode_counts
+                 |> Option.value_exn)
         in
         let max_lower_bound =
-          Set.fold branches ~init:0 ~f:(fun lower_bound state ->
-              let this_lower_bound = State.geode_lower_bound ~time state in
-              Int.max lower_bound this_lower_bound)
+          Map.fold geode_counts ~init:0
+            ~f:(fun ~key:state ~data:geode_count max_lower_bound ->
+              Int.max max_lower_bound
+                (geode_count + State.geode_lower_bound ~time state))
         in
-        let branches =
-          Set.filter branches ~f:(fun state ->
-              State.geode_upper_bound ~time state >= max_lower_bound)
+        let geode_counts =
+          Map.filteri geode_counts ~f:(fun ~key:state ~data:geode_count ->
+              geode_count + State.geode_upper_bound ~time state
+              >= max_lower_bound)
         in
-        helper ~time:(time - 1) ~branches
+        helper ~time:(time - 1) ~geode_counts
   in
+  helper ~time ~geode_counts:(State.Map.singleton State.initial 0)
+  |> Option.value_exn
 
-  helper ~time ~branches:(State.Set.singleton State.initial)
+let%expect_test _ =
+  blueprint_geodes ~blueprint:test_blueprint ~time:24 |> printf "%d\n";
+  [%expect "9"]
+
+(*
+let%expect_test _ =
+  let blueprint = List.hd_exn test_input in
+  blueprint_geodes ~blueprint ~time:32 |> printf "%d\n";
+  [%expect "62"]
+*)
 
 (*
     
-let%expect_test _ =
-  let blueprint = List.hd_exn test_input in
-  blueprint_geodes ~blueprint ~time:24 |> printf "%d\n";
-  [%expect "9"]
-
 let part_a blueprints =
   let quality_levels =
     List.map blueprints ~f:(fun blueprint ->
@@ -167,12 +295,6 @@ let%expect_test _ =
 let%expect_test _ =
   input |> part_a |> printf "%d\n";
   [%expect "1177"]
- *)
-
-let%expect_test _ =
-  let blueprint = List.hd_exn test_input in
-  blueprint_geodes ~blueprint ~time:32 |> printf "%d\n";
-  [%expect "62"]
 
 let part_b blueprints =
   let blueprints = List.take blueprints 3 in
@@ -185,3 +307,4 @@ let part_b blueprints =
 let%expect_test _ =
   input |> part_b |> printf "%d\n";
   [%expect "1177"]
+ *)

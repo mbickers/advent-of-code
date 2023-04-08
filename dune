@@ -7,3 +7,8 @@
  (libraries async)
  (preprocess
   (pps ppx_jane)))
+
+(executable
+ (modules command_line)
+ (name command_line)
+ (libraries async advent_of_code))
