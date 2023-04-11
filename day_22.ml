@@ -9,7 +9,7 @@ module Instruction = struct
 end
 
 module Heading = struct
-  type t = Right | Down | Left | Up [@@deriving sexp]
+  type t = Right | Down | Left | Up [@@deriving sexp, equal]
 
   let to_string t =
     match t with
@@ -100,7 +100,6 @@ module Board = struct
     List.fold instructions
       ~init:(initial_position t, Heading.Right)
       ~f:(fun (position, heading) instruction ->
-        (position, heading) |> [%sexp_of: (int * int) * Heading.t] |> print_s;
         match instruction with
         | Instruction.Turn turn -> (position, Heading.apply ~turn heading)
         | Move number -> try_move ~move ~position ~heading ~number t)
@@ -142,13 +141,13 @@ let part_a (board, instructions) =
   in
   Board.follow_path ~move instructions board |> score
 
-(* let%expect_test _ =
-     test_input |> part_a |> printf "%d\n";
-     [%expect "6032"]
+let%expect_test _ =
+  test_input |> part_a |> printf "%d\n";
+  [%expect "6032"]
 
-   let%expect_test _ =
-     input |> part_a |> printf "%d\n";
-     [%expect "13566"] *)
+let%expect_test _ =
+  input |> part_a |> printf "%d\n";
+  [%expect "13566"]
 
 module Face_corner = struct
   type t = Upper_right | Lower_right | Lower_left | Upper_left
@@ -297,7 +296,7 @@ module Board_cube = struct
                         | [ corner_index1; corner_index2 ] ->
                             Some (corner_index1, corner_index2)
                         | _ -> None)
-                    | x -> failwith ("impossible here: " ^ Int.to_string x)))
+                    | _ -> failwith "impossible"))
           in
           let cube_corners =
             merge_indices ~index1:corner_index1 ~index2:corner_index2
@@ -309,19 +308,24 @@ module Board_cube = struct
     { face_width; regions; cube_corners }
 
   let region ~position:(row, col) { face_width; regions; _ } =
-    Grid.get ~position:(row / face_width, col / face_width) regions
-    |> Option.join
+    match row < 0 || col < 0 with
+    | true -> None
+    | false ->
+        Grid.get ~position:(row / face_width, col / face_width) regions
+        |> Option.join
 
-  let move ~position ~heading t =
+  let move ~position ~heading:current_heading t =
     let current_region = region ~position t |> Option.value_exn in
-    let naive_move_position = Heading.move ~position heading in
+    let naive_move_position = Heading.move ~position current_heading in
     match region ~position:naive_move_position t with
-    | Some region when region = current_region -> (naive_move_position, heading)
+    | Some region when region = current_region ->
+        (naive_move_position, current_heading)
+    | Some _ -> (naive_move_position, current_heading)
     | _ ->
         let (row, col), { face_width; regions; cube_corners } = (position, t) in
         let row_in_grid, col_in_grid = (row % face_width, col % face_width) in
         let current_primary_corner, current_secondary_corner, offset =
-          match heading with
+          match current_heading with
           | Heading.Up ->
               (Face_corner.Upper_left, Face_corner.Upper_right, col_in_grid)
           | Right -> (Upper_right, Lower_right, row_in_grid)
@@ -349,19 +353,18 @@ module Board_cube = struct
                     (region <> current_region && region = region_to_test)
                     (region, primary_face_corner, secondary_face_corner)))
         in
-        printf "moving region %d -> %d\n" current_region new_region;
-        let row_in_region, col_in_region, heading =
+        let new_row_in_region, new_col_in_region, new_heading =
           let mirrored_offset = face_width - offset - 1 in
           match (new_primary_corner, new_secondary_corner) with
           | Face_corner.Upper_left, Face_corner.Upper_right ->
               (0, offset, Heading.Down)
-          | Upper_right, Upper_left -> (0, mirrored_offset, Heading.Down)
+          | Upper_right, Upper_left -> (0, mirrored_offset, Down)
           | Upper_right, Lower_right -> (offset, face_width - 1, Left)
           | Lower_right, Upper_right -> (mirrored_offset, face_width - 1, Left)
           | Lower_left, Lower_right -> (face_width - 1, offset, Up)
           | Lower_right, Lower_left -> (face_width - 1, mirrored_offset, Up)
           | Upper_left, Lower_left -> (offset, 0, Right)
-          | Lower_left, Upper_left -> (0, mirrored_offset, Right)
+          | Lower_left, Upper_left -> (mirrored_offset, 0, Right)
           | _ -> failwith "must have distinct face corners"
         in
         let region_row, region_col =
@@ -370,11 +373,11 @@ module Board_cube = struct
                   Option.bind ~f:(fun region_to_test ->
                       Option.some_if (new_region = region_to_test) (row, col))))
         in
-        let row, col =
-          ( (region_row * face_width) + row_in_region,
-            (region_col * face_width) + col_in_region )
+        let new_row, new_col =
+          ( (region_row * face_width) + new_row_in_region,
+            (region_col * face_width) + new_col_in_region )
         in
-        ((row, col), heading)
+        ((new_row, new_col), new_heading)
 end
 
 let part_b (board, instructions) =
@@ -386,7 +389,6 @@ let part_b (board, instructions) =
     | Open -> `moved (new_position, new_heading)
     | Empty -> failwith "should've moved to new cube face"
   in
-  (* let instructions = List.take instructions 8 in *)
   Board.follow_path ~move instructions board |> score
 
 let%expect_test _ =
@@ -395,4 +397,4 @@ let%expect_test _ =
 
 let%expect_test _ =
   input |> part_b |> printf "%d\n";
-  [%expect "5031"]
+  [%expect "11451"]
