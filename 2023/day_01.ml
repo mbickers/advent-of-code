@@ -25,11 +25,34 @@ let%expect_test _ =
   [%expect "55816"]
 ;;
 
-let part_b input =
+let part_b =
   let spelled_digits =
     [ "one"; "two"; "three"; "four"; "five"; "six"; "seven"; "eight"; "nine" ]
   in
-  0
+  let first_pattern_value ~patterns_and_values line =
+    let _, value =
+      List.filter_map patterns_and_values ~f:(fun (pattern, value) ->
+        String.substr_index line ~pattern |> Option.map ~f:(fun index -> index, value))
+      |> List.min_elt ~compare:(fun (index0, _) (index1, _) -> Int.compare index0 index1)
+      |> Option.value_exn
+    in
+    value
+  in
+  let patterns_and_values =
+    List.mapi spelled_digits ~f:(fun i word -> word, i + 1)
+    @ List.init 9 ~f:(fun digit -> Int.to_string (digit + 1), digit + 1)
+  in
+  let rev_patterns_and_values =
+    List.map patterns_and_values ~f:(fun (pattern, value) -> String.rev pattern, value)
+  in
+  let number_from_line line =
+    let first_digit = first_pattern_value ~patterns_and_values line in
+    let last_digit =
+      first_pattern_value ~patterns_and_values:rev_patterns_and_values (String.rev line)
+    in
+    (first_digit * 10) + last_digit
+  in
+  String.split_lines >> List.sum (module Int) ~f:number_from_line
 ;;
 
 let%expect_test _ =
@@ -41,6 +64,11 @@ let%expect_test _ =
   zoneight234
   7pqrstsixteen|}
   |> part_b
-  |> printf "%s\n";
+  |> printf "%d\n";
   [%expect "281"]
+;;
+
+let%expect_test _ =
+  In_channel.read_all "day_01_input.txt" |> part_b |> printf "%d\n";
+  [%expect "54980"]
 ;;
