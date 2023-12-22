@@ -1,6 +1,6 @@
 (library
  (name advent_of_code)
- (modules day_03)
+ (modules day_04)
  (inline_tests
   (deps
    (glob_files *.txt)))
