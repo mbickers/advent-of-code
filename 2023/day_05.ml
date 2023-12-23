@@ -38,11 +38,11 @@ humidity-to-location map:
 56 93 4|}
 ;;
 
-let parse_almanac =
+let parse_almanac ~transform_seeds =
   let open Angstrom in
   let number = Int.of_string <$> take_while1 Char.is_digit in
   let almanac =
-    string "seeds: " *> sep_by (char ' ') number
+    string "seeds: " *> (transform_seeds <$> sep_by (char ' ') number)
     >>= fun seeds ->
     string "\n\n"
     *> sep_by
@@ -73,7 +73,7 @@ let part_a =
     | Some (`dest dest, `src src, _) -> dest - src + number
     | None -> number
   in
-  parse_almanac
+  parse_almanac ~transform_seeds:Fn.id
   >> fun (seeds, maps) ->
   let seed_to_location =
     List.fold ~init:Fn.id ~f:(fun acc map -> acc >> apply_map map) maps
@@ -91,31 +91,85 @@ let%expect_test _ =
   [%expect "836040384"]
 ;;
 
-let part_b =
-  let rec pair_seeds = function
-    | start :: length :: rest -> (`start start, `length length) :: pair_seeds rest
+module Range = struct
+  type t =
+    { start : int
+    ; end_ : int
+    }
+  [@@deriving sexp]
+
+  let valid { start; end_ } = start <= end_
+  let shift ~by t = { start = t.start + by; end_ = t.end_ + by }
+end
+
+module Range_map = struct
+  type t =
+    { src_start : int
+    ; src_end : int
+    ; dest_start : int
+    }
+  [@@deriving sexp]
+
+  let apply { src_start; src_end; dest_start } Range.{ start; end_ } =
+    let mapped_start = Int.max src_start start in
+    let mapped_end = Int.min src_end end_ in
+    match mapped_start <= mapped_end with
+    | true ->
+      ( `mapped
+          Range.
+            [ shift
+                ~by:(dest_start - src_start)
+                { start = mapped_start; end_ = mapped_end }
+            ]
+      , `unmapped
+          (List.filter
+             ~f:Range.valid
+             Range.
+               [ { start; end_ = mapped_start - 1 }; { start = mapped_end + 1; end_ } ]) )
+    | false -> `mapped [], `unmapped Range.[ { start; end_ } ]
+  ;;
+
+  let apply_to_multiple t =
+    List.fold
+      ~init:(`mapped [], `unmapped [])
+      ~f:(fun (`mapped mapped, `unmapped unmapped) range ->
+        let `mapped new_mapped, `unmapped new_unmapped = apply t range in
+        `mapped (new_mapped @ mapped), `unmapped (new_unmapped @ unmapped))
+  ;;
+end
+
+let part_b input =
+  let rec seeds_to_ranges = function
+    | start :: len :: rest -> (`start start, `len len) :: seeds_to_ranges rest
     | [] -> []
     | _ -> failwith "bad seeds"
   in
-  let apply_map (_, ranges) number =
-    match
-      List.find ranges ~f:(fun (_, `src src, `len len) ->
-        Int.between ~low:src ~high:(src + len - 1) number)
-    with
-    | Some (`dest dest, `src src, _) -> dest - src + number
-    | None -> number
+  let seed_ranges, maps = parse_almanac ~transform_seeds:seeds_to_ranges input in
+  let seed_ranges =
+    List.map seed_ranges ~f:(fun (`start start, `len len) ->
+      Range.{ start; end_ = start + len - 1 })
   in
-  parse_almanac
-  >> fun (seeds, maps) ->
-  let seeds =
-    pair_seeds seeds
-    |> List.concat_map ~f:(fun (`start start, `length length) ->
-      List.init length ~f:(fun i -> start + i))
+  let maps =
+    List.map maps ~f:(fun (name, map_ranges) ->
+      ( name
+      , List.map map_ranges ~f:(fun (`dest dest, `src src, `len len) ->
+          Range_map.{ src_start = src; src_end = src + len - 1; dest_start = dest }) ))
   in
-  let seed_to_location =
-    List.fold ~init:Fn.id ~f:(fun acc map -> acc >> apply_map map) maps
-  in
-  List.map seeds ~f:seed_to_location |> List.min_elt ~compare |> Option.value_exn
+  List.fold maps ~init:seed_ranges ~f:(fun ranges (_, map_ranges) ->
+    let `mapped mapped, `unmapped unmapped =
+      List.fold
+        map_ranges
+        ~init:(`mapped [], `unmapped ranges)
+        ~f:(fun (`mapped mapped, `unmapped ranges) range_map ->
+          let `mapped new_mapped, `unmapped ranges =
+            Range_map.apply_to_multiple range_map ranges
+          in
+          `mapped (new_mapped @ mapped), `unmapped ranges)
+    in
+    mapped @ unmapped)
+  |> List.map ~f:(fun { start; _ } -> start)
+  |> List.min_elt ~compare
+  |> Option.value_exn
 ;;
 
 let%expect_test _ =
@@ -123,7 +177,7 @@ let%expect_test _ =
   [%expect "46"]
 ;;
 
-(* let%expect_test _ =
-   In_channel.read_all "day_05_input.txt" |> part_b |> [%sexp_of: int] |> print_s;
-   [%expect "836040384"]
-   ;; *)
+let%expect_test _ =
+  In_channel.read_all "day_05_input.txt" |> part_b |> [%sexp_of: int] |> print_s;
+  [%expect "10834440"]
+;;
