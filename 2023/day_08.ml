@@ -86,30 +86,38 @@ let example3 =
 XXX = (XXX, XXX)|}
 ;;
 
+(* let part_b input =
+   let instructions, map = parse_map input in
+   let instructions = Array.of_list instructions in
+   let map = String.Map.of_alist_exn map in
+   let start_locations = Map.keys map |> List.filter ~f:(String.is_suffix ~suffix:"A") in
+   let best = ref 0 in
+   let rec advance steps_taken locations =
+   let finished_locations = List.count locations ~f:(String.is_suffix ~suffix:"Z") in
+   best := Int.max finished_locations !best;
+   match steps_taken with
+   | 10000000000 -> failwith (sprintf "best: %d/%d" !best (List.length locations))
+   | _ ->
+   (match List.for_all locations ~f:(String.is_suffix ~suffix:"Z") with
+   | true -> steps_taken
+   | false ->
+   let next location =
+   let `left left, `right right = Map.find_exn map location in
+   match Array.get instructions (steps_taken % Array.length instructions) with
+   | `left -> left
+   | `right -> right
+   in
+   advance (steps_taken + 1) (List.map locations ~f:next))
+   in
+   advance 0 start_locations
+   ;; *)
+
 let part_b input =
   let instructions, map = parse_map input in
   let instructions = Array.of_list instructions in
   let map = String.Map.of_alist_exn map in
   let start_locations = Map.keys map |> List.filter ~f:(String.is_suffix ~suffix:"A") in
-  let best = ref 0 in
-  let rec advance steps_taken locations =
-    let finished_locations = List.count locations ~f:(String.is_suffix ~suffix:"Z") in
-    best := Int.max finished_locations !best;
-    match steps_taken with
-    | 10000000000 -> failwith (sprintf "best: %d/%d" !best (List.length locations))
-    | _ ->
-      (match List.for_all locations ~f:(String.is_suffix ~suffix:"Z") with
-       | true -> steps_taken
-       | false ->
-         let next location =
-           let `left left, `right right = Map.find_exn map location in
-           match Array.get instructions (steps_taken % Array.length instructions) with
-           | `left -> left
-           | `right -> right
-         in
-         advance (steps_taken + 1) (List.map locations ~f:next))
-  in
-  advance 0 start_locations
+  0
 ;;
 
 let%expect_test _ =
@@ -117,7 +125,7 @@ let%expect_test _ =
   [%expect "6"]
 ;;
 
-let%expect_test _ =
-  In_channel.read_all "day_08_input.txt" |> part_b |> [%sexp_of: int] |> print_s;
-  [%expect "15517"]
-;;
+(* let%expect_test _ =
+   In_channel.read_all "day_08_input.txt" |> part_b |> [%sexp_of: int] |> print_s;
+   [%expect "15517"]
+   ;; *)
