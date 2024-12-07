@@ -2,4 +2,5 @@ _build
 .vscode
 *.txt
 *.out
+__pycache__
 .token
