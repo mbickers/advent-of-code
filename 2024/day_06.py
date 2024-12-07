@@ -1,4 +1,4 @@
-import pathlib
+import aoc
 
 
 def parse_input(input):
@@ -82,11 +82,9 @@ test_input = """\
 ........#.
 #.........
 ......#..."""
-assert part1(test_input) == 41
 
-input = pathlib.Path("day_06_input.txt").read_text()
-print(part1(input))
+assert part1(test_input) == 41
+print(part1(aoc.input(6)))
 
 assert part2(test_input) == 6
-# 1913 too high
-print(part2(input))
+print(part2(aoc.input(6)))
