@@ -37,7 +37,6 @@ def solvable(left, right, allow_concat):
 
 def part1(input):
     equations = parse_input(input)
-
     return sum(
         left for left, right in equations if solvable(left, right, allow_concat=False)
     )
