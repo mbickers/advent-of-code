@@ -1,5 +1,4 @@
 from collections import defaultdict
-import itertools
 import aoc
 
 
@@ -18,22 +17,32 @@ def part1(input):
 
 
 def part2(input):
-    connections = {
-        frozenset(sorted([line[:2], line[3:]])) for line in input.splitlines()
-    }
-    # slow but works
-    ks = connections
-    x = 1
-    while len(ks) > 1:
-        x += 1
-        print(len(ks), x)
-        ks = {
-            k1 | k2
-            for k1, k2 in itertools.combinations(ks, r=2)
-            if len(t := k1 ^ k2) == 2
-            if frozenset(t) in connections
-        }
-    return ",".join(sorted(*ks))
+    edges = [sorted([line[:2], line[3:]]) for line in input.splitlines()]
+    neighbors = defaultdict(set)
+    for a, b in edges:
+        neighbors[a].add(b)
+        neighbors[b].add(a)
+
+    # Bron-Kerbosch
+    maximal_cliques = []
+
+    def find_maximal_cliques(includes_all, can_include, includes_none):
+        if not can_include and not includes_none:
+            maximal_cliques.append(includes_all)
+        for v in can_include:
+            find_maximal_cliques(
+                includes_all=includes_all | {v},
+                can_include=can_include & neighbors[v],
+                includes_none=includes_none & neighbors[v],
+            )
+            can_include = can_include - {v}
+            includes_none = includes_none | {v}
+
+    find_maximal_cliques(
+        includes_all=set(), can_include=set(neighbors), includes_none=set()
+    )
+
+    return ",".join(sorted(max(maximal_cliques, key=len)))
 
 
 test_input = """\
