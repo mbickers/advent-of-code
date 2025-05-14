@@ -1,0 +1,15 @@
+(define (all f l)
+  (if (null? l)
+    #t
+    (if (f (car l))
+      (all f (cdr l))
+      #f)))
+(define (zip . ls)
+  (if (all pair? ls)
+   (cons (map car ls) (apply zip (map cdr ls)))
+   '()))
+(define (input) (get-string-all (current-input-port)))
+(define (pipe value . fs)
+  (if (null? fs)
+    value
+    (apply pipe ((car fs) value) (cdr fs))))
