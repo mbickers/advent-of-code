@@ -8,7 +8,6 @@
   (if (all pair? ls)
    (cons (map car ls) (apply zip (map cdr ls)))
    '()))
-(define (input) (get-string-all (current-input-port)))
 (define (pipe value . fs)
   (if (null? fs)
     value
