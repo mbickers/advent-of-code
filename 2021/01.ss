@@ -1,4 +1,4 @@
-(load "lib.scm")
+(load "lib.ss")
 (define (count-increasing l)
   (apply + (map (lambda (p) (if (< (car p) (cadr p)) 1 0)) (zip l (cdr l)))))
 (define (a input) (count-increasing (numbers input)))

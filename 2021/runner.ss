@@ -12,7 +12,7 @@
 (newline)
 (define (read-file filename)
   (call-with-input-file filename get-string-all))
-(load "01.scm")
+(load "01.ss")
 (expect "01a example" 7 (a (read-file "01_example_input.txt")))
 (expect "01a" 1195 (a (read-file "01_input.txt")))
 (expect "01b example" 5 (b (read-file "01_example_input.txt")))
