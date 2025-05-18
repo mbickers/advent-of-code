@@ -47,3 +47,7 @@
     '()
     (let ((split (split-on n l)))
       (cons (car split) (groups n (cadr split))))))
+(define (fold f init l)
+  (if (null? l)
+    init
+    (fold f (f init (car l)) (cdr l))))

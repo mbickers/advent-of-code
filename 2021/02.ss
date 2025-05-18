@@ -1,29 +1,30 @@
 (load "lib.ss")
+(define (parse-steps input)
+  (let
+    ((parse-step (lambda (step) (list (car step) (string->number (cadr step))))))
+    (map parse-step (groups 2 (words input)))))
 (define (a input)
-  (letrec ((update (lambda (steps state)
-    (if (null? steps)
-      state
-      (update
-        (cdr steps)
-        (let ((amount (string->number (cadar steps))))
-          (map +
-            state
-            (cond
-              ((equal? (caar steps) "forward") (list 0 amount))
-              ((equal? (caar steps) "down") (list amount 0))
-              ((equal? (caar steps) "up") (list (- amount) 0))))))))))
-  (apply * (update (groups 2 (words input)) (list 0 0)))))
+  (apply *
+    (fold
+      (lambda (state step)
+        (map +
+          state
+          (cond
+            ((equal? (car step) "forward") (list 0 (cadr step)))
+            ((equal? (car step) "down") (list (cadr step) 0))
+            ((equal? (car step) "up") (list (- (cadr step)) 0)))))
+      (list 0 0)
+      (parse-steps input))))
 (define (b input)
-  (letrec ((update (lambda (steps state)
-    (if (null? steps)
-      state
-      (update
-        (cdr steps)
-        (let ((amount (string->number (cadar steps))))
-          (map +
-            state
-            (cond
-              ((equal? (caar steps) "forward") (list 0 (* amount (car state)) amount))
-              ((equal? (caar steps) "down") (list amount 0 0))
-              ((equal? (caar steps) "up") (list (- amount) 0 0))))))))))
-  (apply * (cdr (update (groups 2 (words input)) (list 0 0 0))))))
+  (let
+    ((end-state (fold
+      (lambda (state step)
+        (map +
+          state
+          (cond
+            ((equal? (car step) "forward") (list 0 (* (cadr step) (car state)) (cadr step)))
+            ((equal? (car step) "down") (list (cadr step) 0 0))
+            ((equal? (car step) "up") (list (- (cadr step)) 0 0)))))
+      (list 0 0 0)
+      (parse-steps input))))
+    (apply * (cdr end-state))))
