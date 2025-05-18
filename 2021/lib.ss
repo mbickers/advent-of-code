@@ -8,10 +8,12 @@
   (if (all pair? ls)
    (cons (map car ls) (apply zip (map cdr ls)))
    '()))
-(define (pipe value . fs)
+(define (compose . fs)
   (if (null? fs)
-    value
-    (apply pipe ((car fs) value) (cdr fs))))
+    (lambda (x) x)
+    (lambda (x) ((apply compose (cdr fs)) ((car fs) x)))))
+(define (pipe value . fs)
+  ((apply compose fs) value))
 (define (split pred l)
   (if (null? l)
     '()
@@ -51,3 +53,54 @@
   (if (null? l)
     init
     (fold f (f init (car l)) (cdr l))))
+(define (alist-update-default k default update l)
+  (cond
+    ((null? l) (list (list k (update default))))
+    ((equal? (caar l) k)
+      (cons (list k (update (cadar l))) (cdr l)))
+    (else (cons (car l) (alist-update-default k default update (cdr l))))))
+(define (freqs l)
+  (fold
+    (lambda
+      (counts item)
+      (alist-update-default item 0 (partial + 1) counts))
+    '()
+    l))
+(define (max-by key l)
+  (letrec
+    ((max-by-aux (lambda (max-seen l)
+      (cond
+        ((null? l) max-seen)
+        ((> (key (car l)) (key max-seen)) (max-by-aux (car l) (cdr l)))
+        (else (max-by-aux max-seen (cdr l)))))))
+    (max-by-aux (car l) (cdr l))))
+(define char->number (compose string string->number))
+(define (char-list->number base l)
+  (letrec ((helper (lambda (earlier-digits l)
+      (if (null? l)
+        earlier-digits
+        (helper (+ (* earlier-digits base) (pipe l car char->number)) (cdr l))))))
+    (helper 0 l)))
+(define (filter f l)
+  (reverse
+    (fold
+      (lambda (seen element)
+        (if (f element)
+          (cons element seen)
+          seen))
+      '()
+      l)))
+(define (by-freq most-or-least l)
+  (car
+    (max-by
+      (if (equal? most-or-least 'most) cadr (compose cadr -))
+      (freqs l))))
+(define (until-one f l)
+  (letrec ((until-one-aux
+      (lambda (round l)
+        (if (null? (cdr l))
+          (car l)
+          (until-one-aux
+            (+ round 1)
+            (f round l))))))
+    (until-one-aux 0 l)))

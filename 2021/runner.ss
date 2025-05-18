@@ -22,3 +22,8 @@
 (expect "02a" 2039912 (a (read-file "02_input.txt")))
 (expect "02b example" 900 (b (read-file "02_example_input.txt")))
 (expect "02b" 1942068080 (b (read-file "02_input.txt")))
+(load "03.ss")
+(expect "03a example" 198 (a (read-file "03_example_input.txt")))
+(expect "03a" 1071734 (a (read-file "03_input.txt")))
+(expect "03b example" 230 (b (read-file "03_example_input.txt")))
+(expect "03b" 6124992 (b (read-file "03_input.txt")))
