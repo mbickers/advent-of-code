@@ -1,9 +1,11 @@
+(define (id x) x)
 (define (all f l)
   (if (null? l)
     #t
     (if (f (car l))
       (all f (cdr l))
       #f)))
+(define (any f l) (not (all (lambda (x) (not (f x))) l)))
 (define (zip . ls)
   (if (all pair? ls)
    (cons (map car ls) (apply zip (map cdr ls)))
@@ -25,7 +27,9 @@
           (cons (cons (car l) (car rest)) (cdr rest)))))))
 (define (whitespace c) (or (equal? c #\newline) (equal? c #\space)))
 (define (words s)
-  (map list->string (split whitespace (string->list s))))
+  (filter
+    (lambda (s) (> (string-length s) 0))
+    (map list->string (split whitespace (string->list s)))))
 (define (numbers s)
   (map string->number (words s)))
 (define (list-remove-tail n l) (reverse (list-tail (reverse l) n)))
@@ -104,3 +108,15 @@
             (+ round 1)
             (f round l))))))
     (until-one-aux 0 l)))
+(define (range b e)
+  (letrec ((range-aux (lambda (l b e)
+      (if (eq? b e)
+        l
+        (range-aux (cons b l) (+ b 1) e)))))
+    (range-aux '() b e)))
+(define (repeat n x) (map (lambda (y) x) (range 0 n)))
+(define (first-sublist f l)
+  (cond
+    ((null? l) l)
+    ((f (car l)) l)
+    (else (first-sublist f (cdr l)))))
