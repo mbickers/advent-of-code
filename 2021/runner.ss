@@ -31,4 +31,4 @@
 (expect "04a example" 4512 (a (read-file "04_example_input.txt")))
 (expect "04a" 8442 (a (read-file "04_input.txt")))
 (expect "04b example" 1924 (b (read-file "04_example_input.txt")))
-;(expect "04b" 6124992 (b (read-file "04_input.txt")))
+(expect "04b" 4590 (b (read-file "04_input.txt")))
