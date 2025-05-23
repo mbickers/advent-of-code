@@ -40,3 +40,5 @@
 (load "06.ss")
 (expect "06a example" 5934 (a (read-file "06_example_input.txt")))
 (expect "06a" 386755 (a (read-file "06_input.txt")))
+(expect "06b example" 26984457539 (b (read-file "06_example_input.txt")))
+(expect "06b" 1732731810807 (b (read-file "06_input.txt")))
