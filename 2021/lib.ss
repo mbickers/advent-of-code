@@ -108,15 +108,22 @@
             (+ round 1)
             (f round l))))))
     (until-one-aux 0 l)))
-(define (range b e)
-  (letrec ((range-aux (lambda (l b e)
+(define range
+  (case-lambda
+    ((b e s) (letrec ((range-aux (lambda (l b e)
       (if (eq? b e)
         l
-        (range-aux (cons b l) (+ b 1) e)))))
+        (range-aux (cons b l) (+ b s) e)))))
     (range-aux '() b e)))
+    ((e) (range 0 e 1))
+    ((b e) (range b e 1))))
 (define (repeat n x) (map (lambda (y) x) (range 0 n)))
 (define (first-sublist f l)
   (cond
     ((null? l) l)
     ((f (car l)) l)
     (else (first-sublist f (cdr l)))))
+(define (sign x) (cond
+  ((> x 0) 1)
+  ((< x 0) -1)
+  (else 0)))
