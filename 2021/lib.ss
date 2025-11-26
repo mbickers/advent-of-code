@@ -127,3 +127,17 @@
   ((> x 0) 1)
   ((< x 0) -1)
   (else 0)))
+(define (sum xs) (fold + 0 xs))
+(define (median nums)
+  (list-ref
+    (list-sort < nums)
+    (floor (/ (length nums) 2))))
+(define (mean nums)
+  (/
+    (sum nums)
+    (length nums)))
+(define (debug x)
+  (newline)
+  (display x)
+  (newline)
+  x)
