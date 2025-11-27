@@ -26,6 +26,10 @@
         (let ((rest (split pred (cdr l))))
           (cons (cons (car l) (car rest)) (cdr rest)))))))
 (define (whitespace c) (or (equal? c #\newline) (equal? c #\space)))
+(define (lines s)
+  (map list->string (split
+    (lambda (c) (equal? c #\newline))
+    (string->list s))))
 (define (words s)
   (filter
     (lambda (s) (> (string-length s) 0))
@@ -141,3 +145,9 @@
   (display x)
   (newline)
   x)
+(define (in xs)
+  (lambda (y)
+    (any
+      (lambda (x) (equal? x y))
+      xs)))
+(define (bool->int b) (if b 1 0))

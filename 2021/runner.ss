@@ -47,3 +47,8 @@
 (expect "7a" 348996 (a (read-file "07_input.txt")))
 (expect "7b example" 168 (b (read-file "07_example_input.txt")))
 (expect "7b" 98231647 (b (read-file "07_input.txt")))
+(load "08.ss")
+(expect "8a example" 26 (a (read-file "08_example_input.txt")))
+(expect "8a" 530 (a (read-file "08_input.txt")))
+(expect "8b example" 61229 (b (read-file "08_example_input.txt")))
+; (expect "8b" 98231647 (b (read-file "07_input.txt")))
