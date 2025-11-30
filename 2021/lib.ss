@@ -151,3 +151,11 @@
       (lambda (x) (equal? x y))
       xs)))
 (define (bool->int b) (if b 1 0))
+(define symbol->char-list (compose symbol->string string->list))
+(define (list=? eq a b)
+  (if
+    (or (null? a) (null? b))
+    (and (null? a) (null? b))
+    (and
+      (eq (car a) (car b))
+      (list=? eq (cdr a) (cdr b)))))
