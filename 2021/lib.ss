@@ -159,3 +159,16 @@
     (and
       (eq (car a) (car b))
       (list=? eq (cdr a) (cdr b)))))
+(define (product . lists)
+  (if
+    (null? lists)
+    '(())
+    (let ((cdr-product (apply product (cdr lists))))
+      (apply
+        append
+        (map
+          (lambda (hd)
+            (map
+              (lambda (tl) (cons hd tl))
+              cdr-product))
+          (car lists))))))
