@@ -57,3 +57,8 @@
 (expect "9a" 524 (a (read-file "09_input.txt")))
 (expect "9b example" 1134 (b (read-file "09_example_input.txt")))
 (expect "9b" 1235430 (b (read-file "09_input.txt")))
+(load "10.ss")
+(expect "10a example" 26397 (a (read-file "10_example_input.txt")))
+(expect "10a" 374061 (a (read-file "10_input.txt")))
+(expect "10b example" 288957 (b (read-file "10_example_input.txt")))
+(expect "10b" 2116639949 (b (read-file "10_input.txt")))
